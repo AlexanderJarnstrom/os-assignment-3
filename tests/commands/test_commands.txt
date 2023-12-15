@@ -1,0 +1,129 @@
+// Dessa kommadon är exempel på vilken funktionalitet som testas.
+// Vid inlämning kommer ett mer omfattande automatiskt testprogram att köras,
+// så tänk på att prova även andra exekveringsfall.
+
+// börja gärna varje sekvens med format
+format
+// ska lista en tom katalog
+ls
+// kolla pwd i rooten, endast "/" ska skrivas ut
+pwd
+
+// filen "a" finns inte, ska ge felmeddelande
+cat a
+// skapa filen "a"
+create a
+hej heja hejare
+
+// kontrollera att filen finns och har rätt innehåll
+ls
+cat a
+
+// skapa ytterligare en fil och kontrollera att den har rätt innehåll
+create a2
+hej heja hejare hejast
+
+ls
+cat a2
+
+// testa att gör append
+append a a2
+// kontrollera att "a" är oförändrad och att "a2" har följande innehåll
+cat a2
+// förväntad output
+hej heja hejare hejast
+hej heja hejare
+// passa samtidigt på att kontrollera att när man gör append måste source
+// ha läsrättigheter och dest måste ha både läs- och skrivrättigheter
+// kontrollera att append ger felmeddelande om detta inte uppfylls
+
+// kontrollera att cp och mv fungerar i samma katalog
+cp a a3
+// kontrollera att katalogen nu innehåller tre filer: a, a2 och a3
+ls
+// kontrollera att a3 innehåller samma som a
+cat a3
+// förväntad output
+hej heja hejare
+
+mv a2 a4
+// kontrollera att katalogen nu innehåller tre filer: a, a3 och a4
+ls
+// kontrollera att a4 innehåller samma som a2 gjorde tidigare
+cat a4
+// förväntad output
+hej heja hejare hejast
+hej heja hejare
+
+// kontrollera att mv och cp inte skriver över existerande filer
+// nedanstående ska ge felmeddelande
+cp a a4
+mv a a4
+
+// kontrollera att det går att skapa kataloger
+mkdir d1
+ls
+// ska ge felmeddelande när man vill skapa en ytterligare en katalog med samma namn
+mkdir d1
+ls
+// ska inte gå att skapa kataloger med samma namn som existerande filer
+// eller skapa filer med samma namn som existerande kataloger
+// båda nedanstående ska ge felmeddelande
+mkdir a
+create d1
+// kontrollera att inget konstigt skapats
+ls
+// kontrollera att det går att ta bort en fil
+rm a
+ls
+// nu ska filen "a" vara borttagen
+
+// kontrollera att cd / pwd funderar
+mkdir d2
+ls
+cd d2
+// kontrollera att du är på rätt ställe (pwd ska ge output "/d2", och ls ska visa en tom katalog)
+pwd
+ls
+
+// gå tillbaka till rootkatalogen
+cd ..
+pwd
+// rm på en katalog ska ge felmeddelande, kontrollera att katalogen ligger kvar
+rm d2
+ls
+
+// kontrollera att chmod fungerar genom att omväxlande sätta och ta bort
+// läs- och skrivrättigheter, samt kolla med t ex cat och append att felmeddelande
+// skrivs ut
+chmod 6 a2
+ls
+append a a2
+ls
+
+// kontrollera att absoluta och relativa pather fungerar
+// börja t ex med att skapa en katalogstruktur, med start i rooten
+// d1 och d2 bör finnas sedan tidigare
+// nedanstående är exempel på kommandon som ska fungera (ej uttömmande)
+cd /
+mkdir /d3
+mkdir d4
+cd /d4  // kontrollera även cd med relativ path
+mkdir ../d5
+create f1
+// du ska nu vara i katalogen "/d4" och där ska ligga en fil "f1", kolla med pwd och ls
+// skapa tre kopior av f1
+cp f1 f2
+cp f1 f3
+cp f1 f4
+// kontrollera att absoluta och relativa sökvägar fungerar för cp / mv,
+// samt att destpath kan vara ett katalognamn, exempelvis:
+cp f1 /d3
+cp f2 ../d3
+mv f3 /d3
+mv f4 ../d3
+// kontrollera att rätt filer ligger kvar i /d4 (ska vara f1 och f2)
+// kontrollera att rätt filer ligger i /d3 (ska vara f1, f2, f3, f4)
+
+// avsluta
+quit
