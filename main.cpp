@@ -1,6 +1,6 @@
-#include "../lib/shell.h"
-#include "../lib/fs.h"
-#include "../lib/disk.h"
+#include "shell.h"
+#include "fs.h"
+#include "disk.h"
 
 int
 main(int argc, char **argv)
