@@ -1,6 +1,7 @@
 #include <iostream>
 #include "fs.h"
 #include <string.h>
+#include <vector>
 
 void FS::load_fat()
 {
@@ -110,7 +111,82 @@ FS::format()
 int
 FS::create(std::string filepath)
 {
-    std::cout << "FS::create(" << filepath << ")\n";
+    std::string buffer;
+    std::string input;
+    int size, needed_files, index, j;
+
+    input.clear();
+
+    uint8_t block[BLOCK_SIZE];
+    uint8_t cell;
+    uint32_t val;
+
+    std::cout << "Enter content:\n";
+
+    while (std::getline(std::cin, buffer) && !buffer.empty()) {
+        input.append(buffer);
+        input.append("\n");
+    }
+
+    input.append("\0");
+
+    size = input.size();
+    needed_files = (size + 4031) / 4032;
+    int free_spots[needed_files];
+    j = 0;
+
+    for (index = 0; index < BLOCK_SIZE / 2 && j < needed_files; index++)
+        if (fat[index] == FAT_FREE) {
+            free_spots[j] = index;
+            j++;
+        }
+
+    // TODO: remove print.
+    printf("Needed Files: %d | Free spots: %d | Free spot: %d\n", needed_files, j, free_spots[0]);
+    std::cout << input << std::endl;
+
+    // TODO: check if disk is full.
+    
+    struct dir_entry file;
+
+    // TODO: Split filepath and follow it.
+    strcpy(file.file_name, filepath.c_str());
+
+    file.size = size;
+    file.first_blk = free_spots[0];
+    file.type = TYPE_FILE;
+    file.access_rights = WRITE + READ;
+
+    // TODO: create a sepreate func for writing file to disk.
+
+    for (index = 0; index < 56; index++) {
+        cell = file.file_name[index];
+        block[index] = cell;
+    }
+
+    for (index = 56; index < 60; index++) {
+        val = file.size >> (8 * (index - 56));
+        cell = val & 0xff;
+        block[index] = cell;
+    }
+
+    for (index = 60; index < 62; index++) {
+        val = file.first_blk >> (8 * (index - 60));
+        cell = val & 0xff;
+        block[index] = cell;
+    }
+
+    block[++index] = file.type;
+    block[++index] = file.access_rights;
+
+    for (j = 0; j < size; j++) {
+        block[index] = input[j];
+        index++;
+    }
+
+    this->disk.write(free_spots[0], block);
+
+
     return 0;
 }
 
