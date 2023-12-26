@@ -1,9 +1,31 @@
 #include <iostream>
 #include "fs.h"
+#include <string.h>
+
+void FS::load_fat()
+{
+    uint8_t block[BLOCK_SIZE];
+    uint8_t holder;
+    uint16_t cell;
+
+    int index, fat_index;
+    fat_index = 0;
+
+    this->disk.read(FAT_BLOCK, block);
+
+    for (index = 0; index < BLOCK_SIZE; index += 2) {
+        cell = block[index + 1];
+        cell = (cell << 8) | block[index];
+
+        fat[fat_index] = cell;
+        fat_index++;
+    }
+}
 
 FS::FS()
 {
     std::cout << "FS::FS()... Creating file system\n";
+    load_fat();
 }
 
 FS::~FS()
@@ -15,7 +37,71 @@ FS::~FS()
 int
 FS::format()
 {
-    std::cout << "FS::format()\n";
+    int index, cap;
+    uint8_t block[BLOCK_SIZE];
+    uint8_t cell;
+    uint16_t entry;
+    uint32_t val;
+
+    cap = this->disk.get_no_blocks();
+
+    // Set everything to zero.
+
+    for (index = 0; index < BLOCK_SIZE; index++)
+        block[index] = 0x00;
+
+    for (index = 0; index < cap; index++)
+        this->disk.write(index, block);
+
+    // Create root dir.
+
+    struct dir_entry root_dir;
+
+    strcpy(root_dir.file_name, "/");
+    root_dir.first_blk = ROOT_BLOCK;
+    root_dir.access_rights = WRITE + READ;
+    root_dir.type = TYPE_DIR;
+    root_dir.size = 0;
+
+    for (index = 0; index < 56; index++) {
+        cell = root_dir.file_name[index];
+        block[index] = cell;
+    }
+
+    for (index = 56; index < 60; index++) {
+        val = root_dir.size >> (8 * (index - 56));
+        cell = val & 0xff;
+        block[index] = cell;
+    }
+
+    for (index = 60; index < 62; index++) {
+        val = root_dir.first_blk >> (8 * (index - 60));
+        cell = val & 0xff;
+        block[index] = cell;
+    }
+
+    block[++index] = root_dir.type;
+    block[++index] = root_dir.access_rights;
+
+    this->disk.write(0, block);
+
+    // Create fat.
+    for (index = 0; index < BLOCK_SIZE; index += 2) {
+        if (index == 0 || index == 1)
+            entry = FAT_EOF;
+        else if (index == 2 || index == 3)
+            entry = FAT_EOF;
+        else
+            entry = FAT_FREE;
+        
+
+        block[index] = entry & 0xff;
+        entry = entry >> 8;
+        block[index + 1] = entry & 0xff;
+    }
+
+    this->disk.write(FAT_BLOCK, block);
+
     return 0;
 }
 
