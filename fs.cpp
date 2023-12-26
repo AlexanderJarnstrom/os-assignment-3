@@ -6,7 +6,6 @@
 void FS::load_fat()
 {
     uint8_t block[BLOCK_SIZE];
-    uint8_t holder;
     uint16_t cell;
 
     int index, fat_index;
@@ -21,6 +20,30 @@ void FS::load_fat()
         fat[fat_index] = cell;
         fat_index++;
     }
+}
+
+void FS::update_fat()
+{
+    uint8_t block[BLOCK_SIZE];
+    uint8_t l_cell, r_cell;
+    uint16_t buffer;
+    
+    int index_f, index_b;
+    index_b = 0;
+
+    for (index_f = 0; index_f < BLOCK_SIZE / 2; index_f++) {
+        buffer = this->fat[index_f];
+
+        r_cell = buffer & 0xff;
+
+        buffer = buffer >> 8;
+        l_cell = buffer & 0xff;
+
+        block[index_b++] = l_cell;
+        block[index_b++] = r_cell;
+    }
+    
+    this->disk.write(FAT_BLOCK, block);
 }
 
 FS::FS()
