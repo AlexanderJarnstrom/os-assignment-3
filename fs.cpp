@@ -138,8 +138,6 @@ FS::create(std::string filepath)
     std::string input;
     int size, needed_files, index, j;
 
-    input.clear();
-
     uint8_t block[BLOCK_SIZE];
     uint8_t cell;
     uint32_t val;
@@ -165,7 +163,7 @@ FS::create(std::string filepath)
         }
 
     // TODO: remove print.
-    printf("Needed Files: %d | Free spots: %d | Free spot: %d\n", needed_files, j, free_spots[0]);
+    printf("Needed Files: %d | Num of Free spots: %d | Free spot: %d\n", needed_files, j, free_spots[0]);
     std::cout << input << std::endl;
 
     // TODO: check if disk is full.
@@ -207,8 +205,12 @@ FS::create(std::string filepath)
         index++;
     }
 
+    // FIXME: over writes root and fat.
+
     this->disk.write(free_spots[0], block);
 
+    this->fat[free_spots[0]] = FAT_EOF;
+    this->update_fat();
 
     return 0;
 }
