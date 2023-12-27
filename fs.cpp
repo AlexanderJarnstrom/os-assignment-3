@@ -1,7 +1,7 @@
 #include <iostream>
 #include "fs.h"
-#include <string.h>
 #include <vector>
+#include <string.h>
 
 void FS::load_fat()
 {
@@ -44,6 +44,71 @@ void FS::update_fat()
     }
     
     this->disk.write(FAT_BLOCK, block);
+}
+
+void FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int& fat_index)
+{
+    int index, name_size, size_size, first_blk_size, current_size, next_size, free_spots;
+    int needed_files_count, file_content_size, needed_blocks, found_blocks;
+    uint8_t cell, block[BLOCK_SIZE];
+    uint32_t buffer;
+
+    name_size = 56;
+    size_size = 4;
+    first_blk_size = 2;
+    current_size = 0;
+    next_size = name_size;
+
+    file_content_size = file_content.size();
+    needed_blocks = (file_content_size + 4031) / 4032;
+    found_blocks = 0;
+
+    int free_blocks[needed_blocks];
+
+    // Find empty block.
+
+    if (fat_index == -1) 
+        for (index = 0; index < BLOCK_SIZE / 2 && found_blocks < needed_blocks; index++)
+            if (fat[index] == FAT_FREE) {
+                free_blocks[found_blocks] = index;
+                found_blocks++;
+            }
+
+    // add file info to array.
+
+    for (index = current_size; index < next_size; index++) {
+        cell = entry.file_name[index];
+        block[index] = cell;
+    }
+
+    current_size = next_size;
+    next_size += size_size;
+
+    for (index = current_size; index < next_size; index++) {
+        buffer = entry.size >> (8 * (index - current_size));
+        cell = buffer & 0xff;
+        block[index] = cell;
+    }
+
+    current_size = next_size;
+    next_size += first_blk_size;
+
+    for (index = current_size; index < next_size; index++) {
+        buffer = entry.first_blk >> (8 * (index - current_size));
+        cell = buffer & 0xff;
+        block[index] = cell;
+    }
+
+    current_size = next_size;
+
+    block[++current_size] = entry.type;
+    block[++current_size] = entry.access_rights;
+
+    // Write blocks
+
+    for (index = 0; index < needed_blocks; index++) {
+        
+    }
 }
 
 FS::FS()

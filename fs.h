@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdint>
+#include <string>
 #include "disk.h"
 
 #ifndef __FS_H__
@@ -15,6 +16,7 @@
 #define READ 0x04
 #define WRITE 0x02
 #define EXECUTE 0x01
+#define FILE_CONTENT_SIZE 4032
 
 struct dir_entry {
     char file_name[56]; // name of the file / sub-directory
@@ -33,6 +35,7 @@ private:
     void load_fat();
     void update_fat();
 
+    void create_dir_entry(struct dir_entry& entry, const std::string file_content = "", const int& fat_index = -1);
 public:
     FS();
     ~FS();
