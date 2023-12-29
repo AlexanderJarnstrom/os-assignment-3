@@ -44,13 +44,14 @@ void FS::update_fat()
     }
     
     this->disk.write(FAT_BLOCK, block);
+    this->load_fat();
 }
 
 void FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int& fat_index)
 {
     int index, name_size, size_size, first_blk_size, current_size, next_size, free_spots;
-    int needed_files_count, file_content_size, needed_blocks, found_blocks;
-    uint8_t cell, block[BLOCK_SIZE];
+    int needed_files_count, file_content_size, needed_blocks, found_blocks, block_index;
+    uint8_t cell, attr[ENTRY_ATTRIBUTE_SIZE], cont[ENTRY_CONTENT_SIZE];
     uint32_t buffer;
 
     name_size = 56;
@@ -60,10 +61,19 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     next_size = name_size;
 
     file_content_size = file_content.size();
-    needed_blocks = (file_content_size + 4031) / 4032;
+    needed_blocks = calc_needed_blocks(file_content_size);
+
+    printf("Needed blocks: %d\n", needed_blocks); // TODO: remove print
+
     found_blocks = 0;
 
     int free_blocks[needed_blocks];
+
+    for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
+        attr[index] = 0;
+
+    for (index = 0; index < ENTRY_CONTENT_SIZE; index++)
+        cont[index] = 0;
 
     // Find empty block.
 
@@ -71,14 +81,17 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
         for (index = 0; index < BLOCK_SIZE / 2 && found_blocks < needed_blocks; index++)
             if (fat[index] == FAT_FREE) {
                 free_blocks[found_blocks] = index;
+
+                if (found_blocks == 0)
+                    entry.first_blk = index;
+
                 found_blocks++;
             }
-
     // add file info to array.
 
     for (index = current_size; index < next_size; index++) {
         cell = entry.file_name[index];
-        block[index] = cell;
+        attr[index] = cell;
     }
 
     current_size = next_size;
@@ -87,7 +100,7 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     for (index = current_size; index < next_size; index++) {
         buffer = entry.size >> (8 * (index - current_size));
         cell = buffer & 0xff;
-        block[index] = cell;
+        attr[index] = cell;
     }
 
     current_size = next_size;
@@ -96,19 +109,81 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     for (index = current_size; index < next_size; index++) {
         buffer = entry.first_blk >> (8 * (index - current_size));
         cell = buffer & 0xff;
-        block[index] = cell;
+        attr[index] = cell;
     }
 
     current_size = next_size;
 
-    block[++current_size] = entry.type;
-    block[++current_size] = entry.access_rights;
+    attr[current_size++] = entry.type;
+    attr[current_size++] = entry.access_rights;
 
     // Write blocks
 
-    for (index = 0; index < needed_blocks; index++) {
-        
+    if (file_content.empty() && fat_index != -1) {
+        this->write_block(attr, cont, fat_index);
+    } else {
+        index = 0;
+        block_index = 0;
+        int letters_left = file_content_size;
+
+        for (char letter : file_content) {
+            letters_left--;
+            cont[index++] = letter;
+
+            if (index == ENTRY_CONTENT_SIZE || letters_left == 0) {
+                this->write_block(attr, cont, free_blocks[block_index]);
+                index = 0;
+
+                if (letters_left == 0) {
+                    this->fat[free_blocks[block_index]] = FAT_EOF;
+                } else {
+                    this->fat[free_blocks[block_index]] = free_blocks[block_index + 1];
+                }
+
+                block_index++;
+                this->update_fat();
+
+                for (int i = 0; i < ENTRY_CONTENT_SIZE; i++) {
+                    cont[i] = 0;
+                }
+            }
+        }
     }
+
+    
+}
+
+void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no)
+{
+    int index;
+    uint8_t block[BLOCK_SIZE];
+
+    for (index = 0; index < BLOCK_SIZE; index++)
+        block[index] = 0;
+
+    for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
+        block[index] = attr[index];
+    
+    for (index = 0; index < ENTRY_CONTENT_SIZE; index++)
+        block[index + ENTRY_ATTRIBUTE_SIZE] = cont[index];
+    
+    this->disk.write(block_no, block);
+}
+
+int FS::calc_needed_blocks(const unsigned long &size)
+{
+    printf("Here\n");
+    int current_val, count;
+
+    current_val = size;
+    count = 0;
+
+    while (current_val > 0) {
+        count++;
+        current_val -= ENTRY_CONTENT_SIZE;
+    }
+
+    return count;
 }
 
 FS::FS()
@@ -152,27 +227,7 @@ FS::format()
     root_dir.type = TYPE_DIR;
     root_dir.size = 0;
 
-    for (index = 0; index < 56; index++) {
-        cell = root_dir.file_name[index];
-        block[index] = cell;
-    }
-
-    for (index = 56; index < 60; index++) {
-        val = root_dir.size >> (8 * (index - 56));
-        cell = val & 0xff;
-        block[index] = cell;
-    }
-
-    for (index = 60; index < 62; index++) {
-        val = root_dir.first_blk >> (8 * (index - 60));
-        cell = val & 0xff;
-        block[index] = cell;
-    }
-
-    block[++index] = root_dir.type;
-    block[++index] = root_dir.access_rights;
-
-    this->disk.write(0, block);
+    this->create_dir_entry(root_dir, "", ROOT_BLOCK);
 
     // Create fat.
     for (index = 0; index < BLOCK_SIZE; index += 2) {
@@ -191,6 +246,8 @@ FS::format()
 
     this->disk.write(FAT_BLOCK, block);
 
+    this->load_fat();
+
     return 0;
 }
 
@@ -201,7 +258,7 @@ FS::create(std::string filepath)
 {
     std::string buffer;
     std::string input;
-    int size, needed_files, index, j;
+    int needed_files, index, j;
 
     uint8_t block[BLOCK_SIZE];
     uint8_t cell;
@@ -214,68 +271,33 @@ FS::create(std::string filepath)
         input.append("\n");
     }
 
-    input.append("\0");
-
-    size = input.size();
-    needed_files = (size + 4031) / 4032;
-    int free_spots[needed_files];
-    j = 0;
-
-    for (index = 0; index < BLOCK_SIZE / 2 && j < needed_files; index++)
-        if (fat[index] == FAT_FREE) {
-            free_spots[j] = index;
-            j++;
-        }
-
-    // TODO: remove print.
-    printf("Needed Files: %d | Num of Free spots: %d | Free spot: %d\n", needed_files, j, free_spots[0]);
-    std::cout << input << std::endl;
-
     // TODO: check if disk is full.
+
+    printf("Here\n");
+
+    for (index = 0; index < 5000; index++) {
+        input.append("H");
+    }
+
+    printf("Test size: %ld\n", input.size());
     
     struct dir_entry file;
 
     // TODO: Split filepath and follow it.
-    strcpy(file.file_name, filepath.c_str());
+    for (index = 0; index < 56; index++)
+        if (index < filepath.size()) {
+            file.file_name[index] = filepath[index];
+        } else
+            file.file_name[index] = 0;
+    
 
-    file.size = size;
-    file.first_blk = free_spots[0];
+    file.size = input.size();
     file.type = TYPE_FILE;
     file.access_rights = WRITE + READ;
 
     // TODO: create a sepreate func for writing file to disk.
 
-    for (index = 0; index < 56; index++) {
-        cell = file.file_name[index];
-        block[index] = cell;
-    }
-
-    for (index = 56; index < 60; index++) {
-        val = file.size >> (8 * (index - 56));
-        cell = val & 0xff;
-        block[index] = cell;
-    }
-
-    for (index = 60; index < 62; index++) {
-        val = file.first_blk >> (8 * (index - 60));
-        cell = val & 0xff;
-        block[index] = cell;
-    }
-
-    block[++index] = file.type;
-    block[++index] = file.access_rights;
-
-    for (j = 0; j < size; j++) {
-        block[index] = input[j];
-        index++;
-    }
-
-    // FIXME: over writes root and fat.
-
-    this->disk.write(free_spots[0], block);
-
-    this->fat[free_spots[0]] = FAT_EOF;
-    this->update_fat();
+    this->create_dir_entry(file, input);
 
     return 0;
 }

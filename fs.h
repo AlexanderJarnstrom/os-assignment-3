@@ -16,7 +16,9 @@
 #define READ 0x04
 #define WRITE 0x02
 #define EXECUTE 0x01
-#define FILE_CONTENT_SIZE 4032
+
+#define ENTRY_CONTENT_SIZE 4032
+#define ENTRY_ATTRIBUTE_SIZE 64
 
 struct dir_entry {
     char file_name[56]; // name of the file / sub-directory
@@ -35,7 +37,12 @@ private:
     void load_fat();
     void update_fat();
 
-    void create_dir_entry(struct dir_entry& entry, const std::string file_content = "", const int& fat_index = -1);
+    void create_dir_entry(struct dir_entry& entry, const std::string file_content, const int& fat_index = -1);
+    void write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no);
+    void create_dir(); // TODO: create dir function.
+
+    int calc_needed_blocks(const unsigned long& size);
+
 public:
     FS();
     ~FS();
