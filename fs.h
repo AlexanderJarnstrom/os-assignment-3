@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include "disk.h"
 
 #ifndef __FS_H__
@@ -17,6 +18,9 @@
 #define WRITE 0x02
 #define EXECUTE 0x01
 
+#define START_ROOT 1
+#define START_WDIR 0
+
 #define ENTRY_CONTENT_SIZE 4032
 #define ENTRY_ATTRIBUTE_SIZE 64
 
@@ -28,9 +32,22 @@ struct dir_entry {
     uint8_t access_rights; // read (0x04), write (0x02), execute (0x01)
 };
 
+struct path_obj {
+    uint8_t start;
+    std::vector<std::string> dirs;
+    std::string end;
+};
+
+struct dir_child {
+    char file_name[56];
+    uint16_t index;
+};
+
 class FS {
 private:
     Disk disk;
+    dir_entry working_dir;
+    std::vector<dir_child> working_dir_children;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
 
@@ -38,8 +55,11 @@ private:
     void update_fat();
 
     void create_dir_entry(struct dir_entry& entry, const std::string file_content, const int& fat_index = -1);
+
     void write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no);
-    void create_dir(); // TODO: create dir function.
+    void read_block(uint16_t block_index);
+
+    path_obj format_path(std::string& path_s);
 
     int calc_needed_blocks(const unsigned long& size);
 

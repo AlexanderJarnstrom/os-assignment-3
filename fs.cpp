@@ -153,6 +153,8 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     
 }
 
+
+
 void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no)
 {
     int index;
@@ -170,9 +172,65 @@ void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONT
     this->disk.write(block_no, block);
 }
 
+void FS::read_block(uint16_t block_index)
+{
+    uint8_t block[BLOCK_SIZE], attr[ENTRY_ATTRIBUTE_SIZE], cont[ENTRY_CONTENT_SIZE];
+    int index;
+
+    for (index = 0; index < BLOCK_SIZE; index ++) 
+        block[index] = 0; 
+
+    // TODO: handle error code -1
+    this->disk.read(block_index, block);
+
+    for (index = 0; index < BLOCK_SIZE; index++)
+        if (index < ENTRY_ATTRIBUTE_SIZE)
+            attr[index] = block[index];
+        else
+            cont[index - ENTRY_ATTRIBUTE_SIZE] = block[index];
+
+    
+}
+
+path_obj FS::format_path(std::string &path_s)
+{
+    // TODO: Handle error.
+    if (path_s.empty())
+        exit(1);
+
+    path_obj path;
+    std::string temp, entry_name;
+    int index;
+
+    if (path_s[0] == '/')
+        path.start = START_ROOT;
+    else
+        path.start = START_WDIR;
+
+    for (index = 0; index < path_s.size(); index++) {
+        if (index == 0 && path.start == START_ROOT)
+            index++;
+        
+        if (path_s[index] == '/') {
+            path.dirs.push_back(entry_name);
+            entry_name.clear();
+        } else {
+            temp = path_s[index];
+            entry_name.append(temp);
+        }
+    }
+
+    path.dirs.push_back(entry_name);
+    entry_name.clear();
+
+    path.end = path.dirs[path.dirs.size() - 1];
+    path.dirs.pop_back();
+
+    return path;
+}
+
 int FS::calc_needed_blocks(const unsigned long &size)
 {
-    printf("Here\n");
     int current_val, count;
 
     current_val = size;
@@ -283,10 +341,13 @@ FS::create(std::string filepath)
     
     struct dir_entry file;
 
-    // TODO: Split filepath and follow it.
+    path_obj path = format_path(filepath);
+
+    // TODO: Follow the path.
+
     for (index = 0; index < 56; index++)
         if (index < filepath.size()) {
-            file.file_name[index] = filepath[index];
+            file.file_name[index] = path.end[index];
         } else
             file.file_name[index] = 0;
     
@@ -295,9 +356,9 @@ FS::create(std::string filepath)
     file.type = TYPE_FILE;
     file.access_rights = WRITE + READ;
 
-    // TODO: create a sepreate func for writing file to disk.
-
     this->create_dir_entry(file, input);
+
+
 
     return 0;
 }
