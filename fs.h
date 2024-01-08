@@ -65,7 +65,7 @@ private:
     dir_entry* read_block_attr(uint16_t block_index);
     
     std::vector<dir_child*> read_cont_dir(const dir_entry* directory);
-    std::string read_cont_file(uint16_t index, dir_entry* entry);
+    std::string read_cont_file(const dir_entry* entry);
 
     path_obj format_path(std::string& path_s);
 

@@ -398,9 +398,19 @@ FS::read_cont_dir(const dir_entry *directory)
 
 // Gets all the content of a file.
 std::string 
-FS::read_cont_file(uint16_t index, dir_entry *entry)
+FS::read_cont_file(const dir_entry *entry)
 {
-    return std::string();
+    uint8_t block[BLOCK_SIZE];
+    int index;
+
+    char content[entry->size];
+
+    this->disk.read(entry->first_blk, block);
+
+    for (index = ENTRY_ATTRIBUTE_SIZE; index < BLOCK_SIZE && index < (entry->size + ENTRY_ATTRIBUTE_SIZE); index++)
+        content[index - ENTRY_ATTRIBUTE_SIZE] = block[index];
+
+    return content;
 }
 
 // Splits up a string into a path_obj
@@ -546,14 +556,6 @@ FS::create(std::string filepath)
     }
 
     // TODO: check if disk is full.
-
-    printf("Here\n");
-
-    for (index = 0; index < 5000; index++) {
-        input.append("H");
-    }
-
-    printf("Test size: %ld\n", input.size());
     
     struct dir_entry file;
 
@@ -583,19 +585,8 @@ FS::create(std::string filepath)
 int
 FS::cat(std::string filepath)
 {
-    dir_entry* entry = read_block_attr(0);
-
-    dir_child child;
-
-    for (int i = 0; i < 56; i++)
-        child.file_name[i] = 0x00;
-
-    strcpy(child.file_name, "Test");
-    child.index = 6;
-
-    update_dir_content(entry, &child);
-
-    std::vector<dir_child*> children = read_cont_dir(entry);
+    dir_entry* entry = read_block_attr(2);
+    std::cout << read_cont_file(entry) << std::endl;
 
     return 0;
 }
