@@ -153,6 +153,100 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     
 }
 
+void FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
+{
+    std::vector<dir_child*> children;
+    uint8_t cont[ENTRY_CONTENT_SIZE], attr[ENTRY_ATTRIBUTE_SIZE], cell;
+    int32_t buffer;
+
+    int index; // Global variables.
+    int name_size, size_size, first_blk_size, current_size, next_size; // attribute variables.
+    int dir_child_size, cont_size, internal_index, child_index; // cont variables.
+
+    // Make sure the new arrays are truly empty.
+    for (index = 0; index < ENTRY_CONTENT_SIZE; index++)
+        cont[index] = 0x00;
+
+    for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
+        attr[index] = 0x00;
+
+    // TODO: handle remove child.
+    if (task == REMOVE_DIR_CHILD)
+        return;
+    
+    // TODO: check if file already exist.
+    // Add new child to array.
+    children = read_cont_dir(entry);
+    children.push_back(child);
+
+    entry->size = sizeof(dir_child) * children.size();
+    printf("Entry size: %d\n", entry->size);
+
+    // Define attr variables
+    name_size = 56;
+    size_size = 4;
+    first_blk_size = 2;
+    current_size = 0;
+    next_size = name_size;
+
+    // Adding attributes to 'attr' for later use.
+    for (index = current_size; index < next_size; index++) {
+        cell = entry->file_name[index];
+        attr[index] = cell;
+    }
+
+    current_size = next_size;
+    next_size += size_size;
+
+    for (index = current_size; index < next_size; index++) {
+        buffer = entry->size >> (8 * (index - current_size));
+        cell = buffer & 0xff;
+        attr[index] = cell;
+    }
+
+    current_size = next_size;
+    next_size += first_blk_size;
+
+    for (index = current_size; index < next_size; index++) {
+        buffer = entry->first_blk >> (8 * (index - current_size));
+        cell = buffer & 0xff;
+        attr[index] = cell;
+    }
+
+    current_size = next_size;
+
+    attr[current_size++] = entry->type;
+    attr[current_size++] = entry->access_rights;
+
+    // Define cont variables
+    dir_child_size = sizeof(dir_child);
+    cont_size = dir_child_size * children.size();
+    internal_index = 0;
+    child_index = 0;
+
+    // Adding content to 'cont' for later use.
+    // TODO: Handler dirs with too large content.
+
+    for (index = 0; index < ENTRY_CONTENT_SIZE && child_index < children.size(); index++) {
+        if (internal_index < name_size) {
+            cont[index] = children[child_index]->file_name[internal_index];
+        } else {
+            buffer = child->index >> (8 * (internal_index - name_size));
+            cell = buffer & 0xff;
+            cont[index] = cell;
+        }
+
+        internal_index++;
+
+        if (internal_index == dir_child_size) {
+            child_index++;
+            internal_index = 0;
+        }
+    }
+
+    write_block(attr, cont, entry->first_blk);
+}
+
 void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no)
 {
     int index;
@@ -173,9 +267,7 @@ void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONT
 dir_entry* FS::read_block_attr(uint16_t block_index)
 {
     uint8_t block[BLOCK_SIZE], attr[ENTRY_ATTRIBUTE_SIZE];
-
-    uint8_t temp;
-    uint32_t buffer;
+    uint32_t temp;
 
     int index, name_size, size_size, blk_size, type_size, access_size;
     int next_size, current_index;
@@ -191,7 +283,7 @@ dir_entry* FS::read_block_attr(uint16_t block_index)
     current_index = 0;
     next_size = name_size;
 
-    buffer = 0x00000000;
+    temp = 0x00000000;
 
     char file_name[name_size];
 
@@ -215,18 +307,18 @@ dir_entry* FS::read_block_attr(uint16_t block_index)
 
     // Get size attribute.
     for (index = next_size - 1; index >= current_index; index--)
-        buffer = (buffer << 8) | attr[index];
+        temp = (temp << 8) | attr[index];
 
-    entry->size = buffer;
+    entry->size = temp;
 
     current_index = next_size;
     next_size += blk_size;
 
     // Get first block index in FAT.
     for (index = next_size - 1; index >= current_index; index--)
-        buffer = (buffer << 8) | attr[index];
+        temp = (temp << 8) | attr[index];
 
-    entry->first_blk = buffer;
+    entry->first_blk = temp;
     
     current_index = next_size;
     next_size += type_size;
@@ -241,6 +333,53 @@ dir_entry* FS::read_block_attr(uint16_t block_index)
     entry->access_rights = attr[current_index];
     
     return entry;
+}
+
+std::vector<dir_child*> FS::read_cont_dir(const dir_entry *directory)
+{
+    uint8_t block[BLOCK_SIZE], cont[ENTRY_CONTENT_SIZE];
+    uint16_t temp;
+    dir_child* temp_child;
+    std::vector<dir_child*> children;
+
+    char file_name[56];
+    int index, internal_index, dir_child_size;
+
+    dir_child_size = sizeof(dir_child);
+    internal_index = 0;
+
+    this->disk.read(directory->first_blk, block);
+
+    for (index = ENTRY_ATTRIBUTE_SIZE; index < (directory->size + ENTRY_ATTRIBUTE_SIZE); index++) {
+        if (internal_index < 56)
+            file_name[internal_index] = block[index];
+        else
+            temp = (temp << 8) | block[index];
+        
+        internal_index++;
+
+        if (internal_index == dir_child_size) {
+            temp_child = new dir_child;
+
+            strcpy(temp_child->file_name, file_name);
+            temp_child->index = temp;
+            temp = 0;
+
+            children.push_back(temp_child);
+
+            internal_index = 0;
+
+            printf("Name: %s | Index: %d\n", file_name, temp_child->index);
+        }
+
+    }
+
+    return children;
+}
+
+std::string FS::read_cont_file(uint16_t index, dir_entry *entry)
+{
+    return std::string();
 }
 
 path_obj FS::format_path(std::string &path_s)
@@ -418,6 +557,22 @@ FS::create(std::string filepath)
 int
 FS::cat(std::string filepath)
 {
+    dir_entry* entry = read_block_attr(0);
+
+    dir_child child;
+
+    for (int i = 0; i < 56; i++)
+        child.file_name[i] = 0x00;
+
+    strcpy(child.file_name, "Test");
+    child.index = 4;
+
+    update_dir_content(entry, &child);
+
+    std::vector<dir_child*> children = read_cont_dir(entry);
+
+    printf("Children: %ld\n", children.size());
+
     return 0;
 }
 
