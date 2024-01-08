@@ -153,8 +153,6 @@ void FS::create_dir_entry(dir_entry &entry, const std::string file_content, cons
     
 }
 
-
-
 void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no)
 {
     int index;
@@ -172,10 +170,30 @@ void FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONT
     this->disk.write(block_no, block);
 }
 
-void FS::read_block(uint16_t block_index)
+dir_entry* FS::read_block_attr(uint16_t block_index)
 {
-    uint8_t block[BLOCK_SIZE], attr[ENTRY_ATTRIBUTE_SIZE], cont[ENTRY_CONTENT_SIZE];
-    int index;
+    uint8_t block[BLOCK_SIZE], attr[ENTRY_ATTRIBUTE_SIZE];
+
+    uint8_t temp;
+    uint32_t buffer;
+
+    int index, name_size, size_size, blk_size, type_size, access_size;
+    int next_size, current_index;
+
+    dir_entry *entry = new dir_entry;
+
+    name_size = 56;
+    size_size = 4;
+    blk_size = 2;
+    type_size = 1;
+    access_size = 1;
+
+    current_index = 0;
+    next_size = name_size;
+
+    buffer = 0x00000000;
+
+    char file_name[name_size];
 
     for (index = 0; index < BLOCK_SIZE; index ++) 
         block[index] = 0; 
@@ -186,10 +204,43 @@ void FS::read_block(uint16_t block_index)
     for (index = 0; index < BLOCK_SIZE; index++)
         if (index < ENTRY_ATTRIBUTE_SIZE)
             attr[index] = block[index];
-        else
-            cont[index - ENTRY_ATTRIBUTE_SIZE] = block[index];
 
+    for (index = 0; index < next_size; index++)
+        file_name[index] = attr[index];
+
+    current_index = next_size;
+    next_size += size_size;
+
+    strcpy(entry->file_name, file_name);
+
+    // Get size attribute.
+    for (index = next_size - 1; index >= current_index; index--)
+        buffer = (buffer << 8) | attr[index];
+
+    entry->size = buffer;
+
+    current_index = next_size;
+    next_size += blk_size;
+
+    // Get first block index in FAT.
+    for (index = next_size - 1; index >= current_index; index--)
+        buffer = (buffer << 8) | attr[index];
+
+    entry->first_blk = buffer;
     
+    current_index = next_size;
+    next_size += type_size;
+
+    // Get type
+    entry->type = attr[current_index];
+
+    current_index = next_size;
+    next_size += type_size;
+
+    // Gett access rights
+    entry->access_rights = attr[current_index];
+    
+    return entry;
 }
 
 path_obj FS::format_path(std::string &path_s)
@@ -367,7 +418,6 @@ FS::create(std::string filepath)
 int
 FS::cat(std::string filepath)
 {
-    std::cout << "FS::cat(" << filepath << ")\n";
     return 0;
 }
 

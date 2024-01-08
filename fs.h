@@ -18,8 +18,8 @@
 #define WRITE 0x02
 #define EXECUTE 0x01
 
-#define START_ROOT 1
-#define START_WDIR 0
+#define START_ROOT 0xff
+#define START_WDIR 0x00
 
 #define ENTRY_CONTENT_SIZE 4032
 #define ENTRY_ATTRIBUTE_SIZE 64
@@ -33,9 +33,9 @@ struct dir_entry {
 };
 
 struct path_obj {
-    uint8_t start;
-    std::vector<std::string> dirs;
-    std::string end;
+    uint8_t start; // Where to start, Root (0xff), working dir (0x00)
+    std::vector<std::string> dirs; // List of directory names
+    std::string end; // The final directory.
 };
 
 struct dir_child {
@@ -57,7 +57,9 @@ private:
     void create_dir_entry(struct dir_entry& entry, const std::string file_content, const int& fat_index = -1);
 
     void write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no);
-    void read_block(uint16_t block_index);
+    
+    dir_entry* read_block_attr(uint16_t block_index);
+    
 
     path_obj format_path(std::string& path_s);
 
