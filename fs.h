@@ -49,7 +49,7 @@ struct dir_child {
 class FS {
 private:
     Disk disk;
-    dir_entry working_dir;
+    dir_entry* working_dir;
     std::vector<dir_child> working_dir_children;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
@@ -57,7 +57,8 @@ private:
     void load_fat();
     void update_fat();
 
-    void create_dir_entry(struct dir_entry& entry, const std::string file_content, const int& fat_index = -1);
+    dir_entry* follow_path(const path_obj* path);
+    void create_dir_entry(struct dir_entry* entry, const std::string file_content, dir_entry* parent, const int& fat_index = -1);
     void update_dir_content(dir_entry* entry, dir_child* child, const uint8_t& task = ADD_DIR_CHILD);
 
     void write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no);
