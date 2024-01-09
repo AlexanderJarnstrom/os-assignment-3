@@ -51,9 +51,53 @@ FS::update_fat()
     this->load_fat();
 }
 
+dir_entry *FS::follow_path(const path_obj *path)
+{
+    std::vector<dir_child*> children;
+    bool dir_exists, entry_found;
+    int index, path_index;
+    dir_entry* dir;
+
+    dir_exists = true;
+    entry_found = false;
+
+    path_index = 0;
+
+    if (path->start == START_ROOT)
+        dir = read_block_attr(ROOT_BLOCK);
+    else if (path->start == START_WDIR && this->working_dir != nullptr)
+        dir = this->working_dir;
+    else
+        return nullptr;
+
+    if (path->dirs.size() == 0 && path->start == START_ROOT)
+        return dir;
+
+    while (dir_exists && !entry_found) {
+        children = read_cont_dir(dir);
+        dir_exists = false;
+
+        for (index = 0; index < children.size() && !dir_exists; index++) {
+            if (strcmp(children[index]->file_name, path->dirs[path_index].c_str()) == 0 && path_index == path->dirs.size()) {
+                dir = read_block_attr(children[index]->index);
+                dir_exists = true;
+                entry_found = true;
+            } else if (strcmp(children[index]->file_name, path->dirs[path_index].c_str()) == 0) {
+                dir = read_block_attr(children[index]->index);
+                dir_exists = true;
+            }
+        }
+    }
+
+    if (!dir_exists)
+        dir = nullptr;
+
+    return dir;
+}
+
 // Creates a file on the disk
 void 
-FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int& fat_index)
+FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry* parent, const int& fat_index)
 {
     int index, name_size, size_size, first_blk_size, current_size, next_size, free_spots;
     int needed_files_count, file_content_size, needed_blocks, found_blocks, block_index;
@@ -87,14 +131,14 @@ FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int
                 free_blocks[found_blocks] = index;
 
                 if (found_blocks == 0)
-                    entry.first_blk = index;
+                    entry->first_blk = index;
 
                 found_blocks++;
             }
     // add file info to array.
 
     for (index = current_size; index < next_size; index++) {
-        cell = entry.file_name[index];
+        cell = entry->file_name[index];
         attr[index] = cell;
     }
 
@@ -102,7 +146,7 @@ FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int
     next_size += size_size;
 
     for (index = current_size; index < next_size; index++) {
-        buffer = entry.size >> (8 * (index - current_size));
+        buffer = entry->size >> (8 * (index - current_size));
         cell = buffer & 0xff;
         attr[index] = cell;
     }
@@ -111,15 +155,15 @@ FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int
     next_size += first_blk_size;
 
     for (index = current_size; index < next_size; index++) {
-        buffer = entry.first_blk >> (8 * (index - current_size));
+        buffer = entry->first_blk >> (8 * (index - current_size));
         cell = buffer & 0xff;
         attr[index] = cell;
     }
 
     current_size = next_size;
 
-    attr[current_size++] = entry.type;
-    attr[current_size++] = entry.access_rights;
+    attr[current_size++] = entry->type;
+    attr[current_size++] = entry->access_rights;
 
     // Write blocks
 
@@ -154,7 +198,14 @@ FS::create_dir_entry(dir_entry &entry, const std::string file_content, const int
         }
     }
 
-    
+    // update parent.
+
+    if (parent != nullptr) {
+        dir_child child;
+        strncpy(child.file_name, entry->file_name, 56);
+        child.index = entry->first_blk;
+        update_dir_content(parent, &child);
+    }
 }
 
 // Updates the directorys' children and the size of the entry
@@ -386,6 +437,8 @@ FS::read_cont_dir(const dir_entry *directory)
             temp_child->index = temp;
             temp = 0;
 
+            printf("Found child name: %s\n", temp_child->file_name);
+
             children.push_back(temp_child);
 
             internal_index = 0;
@@ -511,7 +564,7 @@ FS::format()
     root_dir.type = TYPE_DIR;
     root_dir.size = 0;
 
-    this->create_dir_entry(root_dir, "", ROOT_BLOCK);
+    this->create_dir_entry(&root_dir, "", nullptr, ROOT_BLOCK);
 
     // Create fat.
     for (index = 0; index < BLOCK_SIZE; index += 2) {
@@ -548,8 +601,6 @@ FS::create(std::string filepath)
     uint8_t cell;
     uint32_t val;
 
-    std::cout << "Enter content:\n";
-
     while (std::getline(std::cin, buffer) && !buffer.empty()) {
         input.append(buffer);
         input.append("\n");
@@ -561,7 +612,12 @@ FS::create(std::string filepath)
 
     path_obj path = format_path(filepath);
 
-    // TODO: Follow the path.
+    // TODO: Check if works with longer paths.
+    dir_entry* parent = follow_path(&path);
+
+    // TODO: give reason.
+    if (parent == nullptr)
+        return 0;
 
     for (index = 0; index < 56; index++)
         if (index < filepath.size()) {
@@ -574,9 +630,9 @@ FS::create(std::string filepath)
     file.type = TYPE_FILE;
     file.access_rights = WRITE + READ;
 
-    this->create_dir_entry(file, input);
+    this->create_dir_entry(&file, input, parent);
 
-
+    delete parent;
 
     return 0;
 }
