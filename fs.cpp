@@ -244,7 +244,6 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
     children.push_back(child);
 
     entry->size = sizeof(dir_child) * children.size();
-    printf("Entry size: %d\n", entry->size);
 
     // Define attr variables
     name_size = 56;
@@ -437,8 +436,6 @@ FS::read_cont_dir(const dir_entry *directory)
             temp_child->index = temp;
             temp = 0;
 
-            printf("Found child name: %s\n", temp_child->file_name);
-
             children.push_back(temp_child);
 
             internal_index = 0;
@@ -606,6 +603,13 @@ FS::create(std::string filepath)
         input.append("\n");
     }
 
+    for (index = 0; index < 4000; index++) {
+        if (index % 100 == 0)
+            input.append("\n");
+        else
+            input.append("H");
+    }
+
     // TODO: check if disk is full.
     
     struct dir_entry file;
@@ -641,8 +645,39 @@ FS::create(std::string filepath)
 int
 FS::cat(std::string filepath)
 {
-    dir_entry* entry = read_block_attr(2);
-    std::cout << read_cont_file(entry) << std::endl;
+    path_obj path;
+    dir_entry* parent;
+    dir_entry* file;
+    std::vector<dir_child*> children;
+
+    std::string content;
+    std::string temp;
+
+    path = format_path(filepath);
+
+    // TODO: give reason.
+    if ((parent = follow_path(&path)) == nullptr)
+        return 0;
+
+    children = read_cont_dir(parent);
+
+    for (dir_child* child : children) {
+        temp = child->file_name;
+        if (temp == path.end) {
+            file = read_block_attr(child->index);
+            break;
+        }
+    }
+
+    // TODO: give reason
+    if (file->type == TYPE_DIR)
+        return 0;
+
+    content = read_cont_file(file);
+
+    std::cout << content << std::endl;
+
+    delete parent;
 
     return 0;
 }
