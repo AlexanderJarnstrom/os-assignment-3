@@ -230,7 +230,7 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
     // TODO: handle remove child.
     if (task == REMOVE_DIR_CHILD)
         return;
-    
+
     // Add new child to array.
     children = read_cont_dir(entry);
 
@@ -318,7 +318,7 @@ FS::write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_S
     uint8_t block[BLOCK_SIZE];
 
     for (index = 0; index < BLOCK_SIZE; index++)
-        block[index] = 0;
+        block[index] = 0x00;
 
     for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
         block[index] = attr[index];
@@ -355,22 +355,27 @@ FS::read_block_attr(uint16_t block_index)
     char file_name[name_size];
 
     for (index = 0; index < BLOCK_SIZE; index ++) 
-        block[index] = 0; 
+        block[index] = 0x00; 
+    
+    for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
+        attr[index] = 0x00;
 
     // TODO: handle error code -1
     this->disk.read(block_index, block);
 
-    for (index = 0; index < BLOCK_SIZE; index++)
-        if (index < ENTRY_ATTRIBUTE_SIZE)
-            attr[index] = block[index];
+    for (index = 0; index < ENTRY_ATTRIBUTE_SIZE; index++)
+        attr[index] = block[index];
 
-    for (index = 0; index < next_size; index++)
+    for (index = 0; index < next_size; index++) {
         file_name[index] = attr[index];
+    }
 
     current_index = next_size;
     next_size += size_size;
 
-    strcpy(entry->file_name, file_name);
+    strncpy(entry->file_name, file_name, 56);
+
+
 
     // Get size attribute.
     for (index = next_size - 1; index >= current_index; index--)
@@ -432,7 +437,7 @@ FS::read_cont_dir(const dir_entry *directory)
         if (internal_index == dir_child_size) {
             temp_child = new dir_child;
 
-            strcpy(temp_child->file_name, file_name);
+            strncpy(temp_child->file_name, file_name, 56);
             temp_child->index = temp;
             temp = 0;
 
@@ -451,14 +456,22 @@ std::string
 FS::read_cont_file(const dir_entry *entry)
 {
     uint8_t block[BLOCK_SIZE];
-    int index;
+    bool reached_end = false;
+    int index, fat_index, next_fat_index;
 
-    char content[entry->size];
+    fat_index = entry->first_blk;
 
-    this->disk.read(entry->first_blk, block);
+    std::string content;
 
-    for (index = ENTRY_ATTRIBUTE_SIZE; index < BLOCK_SIZE && index < (entry->size + ENTRY_ATTRIBUTE_SIZE); index++)
-        content[index - ENTRY_ATTRIBUTE_SIZE] = block[index];
+    while (!reached_end) {
+        this->disk.read(fat_index, block);
+
+        for (index = ENTRY_ATTRIBUTE_SIZE; index < BLOCK_SIZE && index < (entry->size + ENTRY_ATTRIBUTE_SIZE); index++) 
+            content += block[index];
+        
+        if ((fat_index = fat[fat_index]) == FAT_EOF)
+            reached_end = true;
+    }
 
     return content;
 }
@@ -603,7 +616,7 @@ FS::create(std::string filepath)
         input.append("\n");
     }
 
-    for (index = 0; index < 4000; index++) {
+    for (index = 0; index < 8000; index++) {
         if (index % 100 == 0)
             input.append("\n");
         else
@@ -618,6 +631,9 @@ FS::create(std::string filepath)
 
     // TODO: Check if works with longer paths.
     dir_entry* parent = follow_path(&path);
+
+
+    
 
     // TODO: give reason.
     if (parent == nullptr)
