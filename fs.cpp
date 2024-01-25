@@ -288,12 +288,10 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
         }
     }
 
-    for (index = 0; index < entry->size; index++)
-        printf("%d ", cont[index]);
-
-    printf("\n");
-
     write_block(attr, cont, entry->first_blk);
+
+    for (dir_child* child : children)
+        delete child;
 }
 
 // Takes the attributes and content arrays and writes them to disk.
@@ -394,6 +392,7 @@ FS::read_block_attr(uint16_t block_index)
 std::vector<dir_child*> 
 FS::read_cont_dir(const dir_entry *directory)
 {
+    printf("%s %d\n", this->working_dir->file_name, this->working_dir->size);
     uint8_t block[BLOCK_SIZE], cont[ENTRY_CONTENT_SIZE];
     uint16_t temp;
     dir_child* temp_child;
@@ -430,6 +429,7 @@ FS::read_cont_dir(const dir_entry *directory)
         }
 
     }
+    printf("%s %d\n", this->working_dir->file_name, this->working_dir->size);
 
     return children;
 }
@@ -670,7 +670,8 @@ FS::cat(std::string filepath)
 
     std::cout << content << std::endl;
 
-    delete parent;
+    if (parent != this->working_dir)
+        delete parent;
 
     return 0;
 }
@@ -686,6 +687,8 @@ FS::ls()
     for (const dir_child* child : children) {
         dir_entry* child_info = read_block_attr(child->index);
         printf("%15s %10d\n", child_info->file_name, child_info->size); 
+        delete child_info;
+        delete child;
     }
 
     return 0;
