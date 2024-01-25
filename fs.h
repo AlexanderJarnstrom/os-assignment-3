@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include "disk.h"
 
 #ifndef __FS_H__
@@ -16,19 +18,60 @@
 #define WRITE 0x02
 #define EXECUTE 0x01
 
+#define START_ROOT 0xff
+#define START_WDIR 0x00
+
+#define ENTRY_CONTENT_SIZE 4032
+#define ENTRY_ATTRIBUTE_SIZE 64
+
+#define REMOVE_DIR_CHILD 0x00
+#define ADD_DIR_CHILD 0xff
+
 struct dir_entry {
-    char file_name[56]; // name of the file / sub-directory
-    uint32_t size; // size of the file in bytes
-    uint16_t first_blk; // index in the FAT for the first block of the file
-    uint8_t type; // directory (1) or file (0)
-    uint8_t access_rights; // read (0x04), write (0x02), execute (0x01)
+    char file_name[56];     // name of the file / sub-directory
+    uint32_t size;          // size of the file in bytes
+    uint16_t first_blk;     // index in the FAT for the first block of the file
+    uint8_t type;           // directory (1) or file (0)
+    uint8_t access_rights;  // read (0x04), write (0x02), execute (0x01)
+};
+
+struct path_obj {
+    uint8_t start;                  // Where to start, Root (0xff), working dir (0x00)
+    std::vector<std::string> dirs;  // List of directory names
+    std::string end;                // The final directory.
+};
+
+struct dir_child {
+    char file_name[56];
+    uint16_t index;
 };
 
 class FS {
 private:
     Disk disk;
+    dir_entry* working_dir;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
+
+    void load_fat();
+    void update_fat();
+    void empty_array(uint8_t* arr, const int& size);
+    void fill_attr_array(uint8_t* attr, const int& size, dir_entry* entry);
+
+    dir_entry* follow_path(const path_obj* path);
+    void create_dir_entry(struct dir_entry* entry, const std::string file_content, dir_entry* parent, const int& fat_index = -1);
+    void update_dir_content(dir_entry* entry, dir_child* child, const uint8_t& task = ADD_DIR_CHILD);
+
+    void write_block(uint8_t attr[ENTRY_ATTRIBUTE_SIZE], uint8_t cont[ENTRY_CONTENT_SIZE], unsigned block_no);
+    
+    dir_entry* read_block_attr(uint16_t block_index);
+    
+    std::vector<dir_child*> read_cont_dir(const dir_entry* directory);
+    std::string read_cont_file(const dir_entry* entry);
+
+    path_obj format_path(std::string& path_s);
+
+    int calc_needed_blocks(const unsigned long& size);
 
 public:
     FS();

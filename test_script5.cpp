@@ -8,8 +8,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include "test_script.h"
-#include "../lib/fs.h"
-
+#include "fs.h"
 
 #define PRINTDIV std::cout <<  "================================================================================" << std::endl
 #define PRINTDIV2 std::cout << "----------------------------------------" << std::endl

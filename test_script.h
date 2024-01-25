@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../lib/fs.h"
+#include "fs.h"
 
 #ifndef __SHELL_H__
 #define __SHELL_H__
