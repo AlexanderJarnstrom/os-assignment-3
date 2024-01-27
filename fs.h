@@ -59,6 +59,7 @@ private:
     void fill_attr_array(uint8_t* attr, const int& size, dir_entry* entry);
 
     dir_entry* follow_path(const path_obj* path);
+    dir_entry* get_child(const dir_entry* parent, const std::string& name);
     void create_dir_entry(struct dir_entry* entry, const std::string file_content, dir_entry* parent, const int& fat_index = -1);
     void update_dir_content(dir_entry* entry, dir_child* child, const uint8_t& task = ADD_DIR_CHILD);
 
