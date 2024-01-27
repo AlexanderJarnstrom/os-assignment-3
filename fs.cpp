@@ -700,6 +700,12 @@ int
 FS::cp(std::string sourcepath, std::string destpath)
 {
     std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
+
+    path_obj src_path = format_path(sourcepath);
+    path_obj dest_path = format_path(destpath);
+
+    printf("from %s to %s\n", src_path.end, dest_path.end);
+
     return 0;
 }
 
