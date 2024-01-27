@@ -145,6 +145,19 @@ dir_entry *FS::follow_path(const path_obj *path)
     return dir;
 }
 
+dir_entry* FS::get_child(const dir_entry *parent, const std::string &name)
+{
+    std::vector<dir_child*> children;
+    children = read_cont_dir(parent);
+
+    for (dir_child* entry : children) 
+        if (strcmp(entry->file_name, name.c_str()) == 0) {
+            return read_block_attr(entry->index);
+        }
+
+    return nullptr;
+}
+
 // Creates a file on the disk
 void 
 FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry* parent, const int& fat_index)
@@ -238,11 +251,6 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
     empty_array(attr, ENTRY_ATTRIBUTE_SIZE);
     empty_array(cont, ENTRY_CONTENT_SIZE);
 
-    for (index = 0; index < ENTRY_CONTENT_SIZE; index++)
-        std::cout << cont[index];
-
-    std::cout << std::endl << std::endl;
-
     // TODO: handle remove child.
     if (task == REMOVE_DIR_CHILD)
         return;
@@ -289,9 +297,6 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task)
     }
 
     write_block(attr, cont, entry->first_blk);
-
-    for (dir_child* child : children)
-        delete child;
 }
 
 // Takes the attributes and content arrays and writes them to disk.
@@ -392,7 +397,6 @@ FS::read_block_attr(uint16_t block_index)
 std::vector<dir_child*> 
 FS::read_cont_dir(const dir_entry *directory)
 {
-    printf("%s %d\n", this->working_dir->file_name, this->working_dir->size);
     uint8_t block[BLOCK_SIZE], cont[ENTRY_CONTENT_SIZE];
     uint16_t temp;
     dir_child* temp_child;
@@ -429,7 +433,6 @@ FS::read_cont_dir(const dir_entry *directory)
         }
 
     }
-    printf("%s %d\n", this->working_dir->file_name, this->working_dir->size);
 
     return children;
 }
@@ -706,22 +709,71 @@ FS::ls()
 int
 FS::cp(std::string sourcepath, std::string destpath)
 {
-    std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
+    // Init variables
+    path_obj src_path, dest_path;
+    dir_entry *src_entry, *src_entry_parent, *dest_entry, *dest_entry_parent;
 
-    path_obj src_path;
-    path_obj dest_path;
+    std::string content;
 
+    // Validate input
     if (format_path(sourcepath, &src_path) != 0) {
-        printf("%s is not a valid path.\n", sourcepath);
+        printf("%s is not a valid path.\n", sourcepath.c_str());
         return 0;
     }
 
     if (format_path(destpath, &dest_path) != 0) {
-        printf("%s is not a valid path.\n", destpath);
+        printf("%s is not a valid path.\n", destpath.c_str());
         return 0;
     }
 
-    printf("from %s to %s\n", src_path.end, dest_path.end);
+    if ((src_entry_parent = follow_path(&src_path)) == nullptr) {
+        printf("%s doesn't exist.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if ((src_entry = get_child(src_entry_parent, src_path.end)) == nullptr) {
+        printf("%s doesn't exist.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if (src_entry->type == TYPE_DIR) {
+        printf("%s is a directory, expected a file.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if ((dest_entry_parent = follow_path(&dest_path)) == nullptr) {
+        printf("%s doesn't exist.\n", destpath.c_str());
+        return 0;
+    }
+
+    if ((dest_entry = get_child(dest_entry_parent, dest_path.end)) != nullptr) {
+        printf("%s already exist.\n", destpath.c_str());
+        return 0;
+    }
+
+    dest_entry = new dir_entry;
+
+    // copy attributes
+    strcpy(dest_entry->file_name, dest_path.end.c_str());
+    dest_entry->size = src_entry->size;
+    dest_entry->first_blk = src_entry->first_blk;
+    dest_entry->type = src_entry->type;
+    dest_entry->access_rights = src_entry->access_rights;
+
+    // copy content
+    content = read_cont_file(src_entry);
+
+    create_dir_entry(dest_entry, content, dest_entry_parent);
+
+    // free mem
+    delete src_entry;
+    delete dest_entry;
+
+    if (src_entry_parent != this->working_dir)
+        delete src_entry_parent;
+
+    if (dest_entry_parent != this->working_dir)
+        delete dest_entry_parent;
 
     return 0;
 }
