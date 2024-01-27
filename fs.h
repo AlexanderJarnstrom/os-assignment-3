@@ -69,7 +69,7 @@ private:
     std::vector<dir_child*> read_cont_dir(const dir_entry* directory);
     std::string read_cont_file(const dir_entry* entry);
 
-    path_obj format_path(std::string& path_s);
+    int format_path(std::string& path_s, path_obj* path);
 
     int calc_needed_blocks(const unsigned long& size);
 

@@ -460,28 +460,27 @@ FS::read_cont_file(const dir_entry *entry)
 }
 
 // Splits up a string into a path_obj
-path_obj 
-FS::format_path(std::string &path_s)
+int 
+FS::format_path(std::string &path_s, path_obj* path)
 {
     // TODO: Handle error.
     if (path_s.empty())
-        exit(1);
+        return 1;
 
-    path_obj path;
     std::string temp, entry_name;
     int index;
 
     if (path_s[0] == '/')
-        path.start = START_ROOT;
+        path->start = START_ROOT;
     else
-        path.start = START_WDIR;
+        path->start = START_WDIR;
 
     for (index = 0; index < path_s.size(); index++) {
-        if (index == 0 && path.start == START_ROOT)
+        if (index == 0 && path->start == START_ROOT)
             index++;
         
         if (path_s[index] == '/') {
-            path.dirs.push_back(entry_name);
+            path->dirs.push_back(entry_name);
             entry_name.clear();
         } else {
             temp = path_s[index];
@@ -489,13 +488,13 @@ FS::format_path(std::string &path_s)
         }
     }
 
-    path.dirs.push_back(entry_name);
+    path->dirs.push_back(entry_name);
     entry_name.clear();
 
-    path.end = path.dirs[path.dirs.size() - 1];
-    path.dirs.pop_back();
+    path->end = path->dirs[path->dirs.size() - 1];
+    path->dirs.pop_back();
 
-    return path;
+    return 0;
 }
 
 // Calculates the amount of needed blocks for a file.
@@ -593,6 +592,8 @@ FS::create(std::string filepath)
     uint8_t cell;
     uint32_t val;
 
+    path_obj path;
+
     while (std::getline(std::cin, buffer) && !buffer.empty()) {
         input.append(buffer);
         input.append("\n");
@@ -602,7 +603,10 @@ FS::create(std::string filepath)
     
     dir_entry file;
 
-    path_obj path = format_path(filepath);
+    if (format_path(filepath, &path) != 0) {
+        printf("%s is not a valid path.\n", filepath);
+        return 0;
+    }
 
     // TODO: Check if works with longer paths.
     dir_entry* parent = follow_path(&path);
@@ -644,7 +648,10 @@ FS::cat(std::string filepath)
     std::string content;
     std::string temp;
 
-    path = format_path(filepath);
+    if (format_path(filepath, &path) != 0) {
+        printf("%s is not a valid path.\n", filepath);
+        return 0;
+    }
 
     // TODO: give reason.
     if ((parent = follow_path(&path)) == nullptr)
@@ -701,8 +708,18 @@ FS::cp(std::string sourcepath, std::string destpath)
 {
     std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
 
-    path_obj src_path = format_path(sourcepath);
-    path_obj dest_path = format_path(destpath);
+    path_obj src_path;
+    path_obj dest_path;
+
+    if (format_path(sourcepath, &src_path) != 0) {
+        printf("%s is not a valid path.\n", sourcepath);
+        return 0;
+    }
+
+    if (format_path(destpath, &dest_path) != 0) {
+        printf("%s is not a valid path.\n", destpath);
+        return 0;
+    }
 
     printf("from %s to %s\n", src_path.end, dest_path.end);
 
