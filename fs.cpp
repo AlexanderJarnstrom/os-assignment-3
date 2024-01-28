@@ -783,7 +783,68 @@ FS::cp(std::string sourcepath, std::string destpath)
 int
 FS::mv(std::string sourcepath, std::string destpath)
 {
-    std::cout << "FS::mv(" << sourcepath << "," << destpath << ")\n";
+    // Init variables
+    path_obj src_path, dest_path;
+    dir_entry *src_entry, *src_entry_parent, *dest_entry_parent;
+    dir_child *src_child;
+    std::vector<dir_child*> src_children, dest_children;
+
+    int index;
+
+    // Validate input
+    if (format_path(sourcepath, &src_path) != 0) {
+        printf("%s is not a valid path.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if (format_path(destpath, &dest_path) != 0) {
+        printf("%s is not a valid path.\n", destpath.c_str());
+        return 0;
+    }
+
+    if ((src_entry_parent = follow_path(&src_path)) == nullptr) {
+        printf("%s doesn't exist.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if ((src_entry = get_child(src_entry_parent, src_path.end)) == nullptr) {
+        printf("%s doesn't exist.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if (src_entry->type == TYPE_DIR) {
+        printf("%s is a directory, expected a file.\n", sourcepath.c_str());
+        return 0;
+    }
+
+    if ((dest_entry_parent = follow_path(&dest_path)) == nullptr) {
+        printf("%s doesn't exist.\n", destpath.c_str());
+        return 0;
+    }
+
+    src_children = read_cont_dir(src_entry_parent);
+    dest_children = read_cont_dir(dest_entry_parent);
+
+    strcpy(src_child->file_name, src_entry->file_name);
+    src_child->index = src_entry->first_blk;
+
+    for (index = 0; index < src_children.size(); index++)
+        if (strcmp(src_children[index]->file_name, src_entry->file_name) == 0) {
+            src_children.erase(src_children.begin() + index);
+            break;
+        }
+
+    update_dir_content(dest_entry_parent, src_child);
+
+    // free mem
+    delete src_entry;
+
+    if (src_entry_parent != this->working_dir)
+        delete src_entry_parent;
+
+    if (dest_entry_parent != this->working_dir)
+        delete dest_entry_parent;
+
     return 0;
 }
 
