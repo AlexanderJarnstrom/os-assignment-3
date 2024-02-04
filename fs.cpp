@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include "fs.h"
@@ -600,7 +601,13 @@ FS::create(std::string filepath) {
   }
 
   // TODO: Check if works with longer paths.
-  dir_entry* parent = follow_path(&path);
+  dir_entry* parent;
+  if ((parent = follow_path(&path)) == nullptr ) {
+    printf("Path: %s doesnt exist\n", filepath.c_str());
+    return 0;
+  }
+
+  std::cout << parent->first_blk << std::endl;
 
   // TODO: give reason.
   if (parent == nullptr)
@@ -617,8 +624,9 @@ FS::create(std::string filepath) {
   file.access_rights = WRITE + READ;
 
   this->create_dir_entry(&file, input, parent);
-
-  delete parent;
+  
+  if (parent != this->working_dir)
+    delete parent;
 
   return 0;
 }
@@ -770,7 +778,49 @@ FS::mv(std::string sourcepath, std::string destpath) {
 // rm <filepath> removes / deletes the file <filepath>
 int
 FS::rm(std::string filepath) {
-  std::cout << "FS::rm(" << filepath << ")\n";
+  path_obj path;
+  dir_entry *parent, *entry;
+  int next_fat, current_fat;
+  dir_child entry_child;
+
+  if (format_path(filepath, &path) != 0) {
+    printf("%s is not a valid path.\n", filepath.c_str());
+    return 0;
+  }
+
+  if ((parent = follow_path(&path)) == nullptr) {
+    printf("%s doesn't exist.\n", filepath.c_str());
+    return 0;
+  }
+
+  if ((entry = get_child(parent, path.end)) == nullptr) {
+    printf("%s doesn't exist.\n", filepath.c_str());
+    return 0;
+  }
+  
+  // delete fat index from fat table.
+  current_fat = entry->first_blk; 
+
+  while (current_fat != FAT_EOF) {
+    printf("%d\n", current_fat);
+    next_fat = this->fat[current_fat];
+    this->fat[current_fat] = FAT_FREE;
+    current_fat = next_fat;
+    
+    printf("%d\n", current_fat);
+  }
+
+  update_fat();
+
+  printf("%d\n", current_fat);
+  
+  for (int i = 0; i < 56; i++)
+    entry_child.file_name[i]  = entry->file_name[i];
+  
+  printf("%d\n", current_fat);
+
+  update_dir_content(parent, &entry_child, REMOVE_DIR_CHILD);
+
   return 0;
 }
 
