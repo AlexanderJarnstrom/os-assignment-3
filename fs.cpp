@@ -248,22 +248,27 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task) 
 
   empty_array(attr, ENTRY_ATTRIBUTE_SIZE);
   empty_array(cont, ENTRY_CONTENT_SIZE);
-
-  // TODO: handle remove child.
-  if (task == REMOVE_DIR_CHILD)
-    return;
-
   // Add new child to array.
   children = read_cont_dir(entry);
 
-  for (dir_child* exi_child : children) {
-    if (strcmp(exi_child->file_name, child->file_name) == 0) {
-      printf("File named '%s' already exists.\n", child->file_name);
-      return;
-    }
-  }
 
-  children.push_back(child);
+  // TODO: handle remove child.
+  if (task == ADD_DIR_CHILD) {
+    for (dir_child* exi_child : children) {
+      if (strcmp(exi_child->file_name, child->file_name) == 0) {
+        printf("File named '%s' already exists.\n", child->file_name);
+        return;
+      }
+    }
+
+    children.push_back(child);
+
+  } else if (task == REMOVE_DIR_CHILD) {
+    
+  } else {
+    printf("Something went wrong.\n");
+    return;
+  }
 
   entry->size = sizeof(dir_child) * children.size();
 
