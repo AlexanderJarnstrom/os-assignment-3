@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include "fs.h"
@@ -165,6 +166,8 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
   file_content_size = file_content.size();
   needed_blocks = calc_needed_blocks(file_content_size);
 
+  printf("Needed blocks: %d\n", needed_blocks);
+
   found_blocks = 0;
 
   int free_blocks[needed_blocks];
@@ -185,6 +188,8 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
 
         found_blocks++;
       }
+
+  printf("Found empty: %d\n", free_blocks[0]);
 
   fill_attr_array(attr, ENTRY_ATTRIBUTE_SIZE, entry);
 
@@ -212,8 +217,6 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
         }
 
         block_index++;
-        this->update_fat();
-
         for (int i = 0; i < ENTRY_CONTENT_SIZE; i++) {
           cont[i] = 0;
         }
@@ -221,7 +224,10 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
     }
   } else if (entry->type == TYPE_DIR) {
     this->write_block(attr, cont, free_blocks[0]);
+    this->fat[free_blocks[0]] = FAT_EOF;
   }
+
+  update_fat();
 
   // update parent.
 
@@ -247,22 +253,35 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task) 
 
   empty_array(attr, ENTRY_ATTRIBUTE_SIZE);
   empty_array(cont, ENTRY_CONTENT_SIZE);
-
-  // TODO: handle remove child.
-  if (task == REMOVE_DIR_CHILD)
-    return;
-
   // Add new child to array.
   children = read_cont_dir(entry);
 
-  for (dir_child* exi_child : children) {
-    if (strcmp(exi_child->file_name, child->file_name) == 0) {
-      printf("File named '%s' already exists.\n", child->file_name);
-      return;
-    }
-  }
 
-  children.push_back(child);
+  // TODO: handle remove child.
+  if (task == ADD_DIR_CHILD) {
+    for (dir_child* exi_child : children) {
+      if (strcmp(exi_child->file_name, child->file_name) == 0) {
+        printf("File named '%s' already exists.\n", child->file_name);
+        return;
+      }
+    }
+
+    children.push_back(child);
+
+  } else if (task == REMOVE_DIR_CHILD) {
+    index = 0;
+    for (dir_child* exi_child : children) {
+      if (strcmp(exi_child->file_name, child->file_name) == 0) {
+        children.erase(children.begin() + index);
+        break;
+      }
+
+      index++;
+    }
+  } else {
+    printf("Something went wrong.\n");
+    return;
+  }
 
   entry->size = sizeof(dir_child) * children.size();
 
@@ -600,7 +619,13 @@ FS::create(std::string filepath) {
   }
 
   // TODO: Check if works with longer paths.
-  dir_entry* parent = follow_path(&path);
+  dir_entry* parent;
+  if ((parent = follow_path(&path)) == nullptr ) {
+    printf("Path: %s doesnt exist\n", filepath.c_str());
+    return 0;
+  }
+
+  std::cout << parent->first_blk << std::endl;
 
   // TODO: give reason.
   if (parent == nullptr)
@@ -617,8 +642,9 @@ FS::create(std::string filepath) {
   file.access_rights = WRITE + READ;
 
   this->create_dir_entry(&file, input, parent);
-
-  delete parent;
+  
+  if (parent != this->working_dir)
+    delete parent;
 
   return 0;
 }
@@ -770,7 +796,51 @@ FS::mv(std::string sourcepath, std::string destpath) {
 // rm <filepath> removes / deletes the file <filepath>
 int
 FS::rm(std::string filepath) {
-  std::cout << "FS::rm(" << filepath << ")\n";
+  path_obj path;
+  dir_entry *parent, *entry;
+  int next_fat, current_fat;
+  dir_child entry_child;
+
+  if (format_path(filepath, &path) != 0) {
+    printf("%s is not a valid path.\n", filepath.c_str());
+    return 0;
+  }
+
+  if ((parent = follow_path(&path)) == nullptr) {
+    printf("%s doesn't exist.\n", filepath.c_str());
+    return 0;
+  }
+
+  if ((entry = get_child(parent, path.end)) == nullptr) {
+    printf("%s doesn't exist.\n", filepath.c_str());
+    return 0;
+  }
+  
+  // delete fat index from fat table.
+  current_fat = entry->first_blk; 
+
+  printf("%s\n", entry->file_name);
+
+  while (current_fat != FAT_EOF) {
+    printf("%d\n", current_fat);
+    next_fat = this->fat[current_fat];
+    this->fat[current_fat] = FAT_FREE;
+    current_fat = next_fat;
+    
+    printf("%d\n", current_fat);
+  }
+
+  update_fat();
+
+  printf("%d\n", current_fat);
+  
+  for (int i = 0; i < 56; i++)
+    entry_child.file_name[i]  = entry->file_name[i];
+  
+  printf("%d\n", current_fat);
+
+  update_dir_content(parent, &entry_child, REMOVE_DIR_CHILD);
+
   return 0;
 }
 
