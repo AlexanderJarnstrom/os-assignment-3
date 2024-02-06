@@ -166,6 +166,8 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
   file_content_size = file_content.size();
   needed_blocks = calc_needed_blocks(file_content_size);
 
+  printf("Needed blocks: %d\n", needed_blocks);
+
   found_blocks = 0;
 
   int free_blocks[needed_blocks];
@@ -186,6 +188,8 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
 
         found_blocks++;
       }
+
+  printf("Found empty: %d\n", free_blocks[0]);
 
   fill_attr_array(attr, ENTRY_ATTRIBUTE_SIZE, entry);
 
@@ -213,8 +217,6 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
         }
 
         block_index++;
-        this->update_fat();
-
         for (int i = 0; i < ENTRY_CONTENT_SIZE; i++) {
           cont[i] = 0;
         }
@@ -222,7 +224,10 @@ FS::create_dir_entry(dir_entry *entry, const std::string file_content, dir_entry
     }
   } else if (entry->type == TYPE_DIR) {
     this->write_block(attr, cont, free_blocks[0]);
+    this->fat[free_blocks[0]] = FAT_EOF;
   }
+
+  update_fat();
 
   // update parent.
 
@@ -264,7 +269,15 @@ FS::update_dir_content(dir_entry *entry, dir_child *child, const uint8_t &task) 
     children.push_back(child);
 
   } else if (task == REMOVE_DIR_CHILD) {
-    
+    index = 0;
+    for (dir_child* exi_child : children) {
+      if (strcmp(exi_child->file_name, child->file_name) == 0) {
+        children.erase(children.begin() + index);
+        break;
+      }
+
+      index++;
+    }
   } else {
     printf("Something went wrong.\n");
     return;
@@ -805,6 +818,8 @@ FS::rm(std::string filepath) {
   
   // delete fat index from fat table.
   current_fat = entry->first_blk; 
+
+  printf("%s\n", entry->file_name);
 
   while (current_fat != FAT_EOF) {
     printf("%d\n", current_fat);
