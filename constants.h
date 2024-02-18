@@ -1,6 +1,7 @@
 #ifndef __CONSTANTS_H__
 #define __CONSTANTS_H__
 
+#define ENTRY_SIZE 4096
 #define ENTRY_CONTENT_SIZE 4032
 #define ENTRY_ATTRIBUTE_SIZE 64
 

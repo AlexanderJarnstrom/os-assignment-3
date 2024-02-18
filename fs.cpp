@@ -655,29 +655,23 @@ FS::cat(std::string filepath) {
   path_obj path;
   dir_entry* parent;
   dir_entry* file;
-  std::vector<dir_child*> children;
 
   std::string content;
-  std::string temp;
 
   if (format_path(filepath, &path) != 0) {
     printf("%s is not a valid path.\n", filepath.c_str());
     return 0;
   }
-
+ 
   // TODO: give reason.
-  if ((parent = follow_path(&path)) == nullptr)
+  if ((parent = follow_path(&path)) == nullptr) {
+    printf("Couldn't follow path\n");
     return 0;
-
-  children = read_cont_dir(parent);
-
-  for (dir_child* child : children) {
-    temp = child->file_name;
-    if (temp == path.end) {
-      file = read_block_attr(child->index);
-      break;
-    }
   }
+
+  printf("%s\n", parent->file_name);
+
+  file = get_child(parent, path.end);
 
   // TODO: give reason
   if (file->type == TYPE_DIR) {
