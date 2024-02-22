@@ -11,4 +11,6 @@
 #define F_TYPE_SIZE 1
 #define F_ACCESS_RIGHTS_SIZE 1
 
+#define DIR_CHILD_SIZE 58
+
 #endif //__CONSTANTS_H__
