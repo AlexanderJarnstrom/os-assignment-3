@@ -29,13 +29,30 @@ struct file_t {
   std::string content;   // File content
 };
 
+/* Get a directory from disk with fat index
+ * @param FS *fs filesystem
+ * @param directory_t *dir directory obj
+ * @param const uint16_t &blk_index fat index
+ */
 void get_directory(FS *fs, directory_t *dir, const uint16_t &blk_index);
+/* Get a directory from disk with parent
+ * @param FS *fs filesystem
+ * @param directory_t *dir directory obj
+ * @param directory_t *parent_dir parent directory to dir
+ * @param const char name[56] name of searched directory
+ * */
 void get_directory(FS *fs, directory_t *dir, directory_t *parent_dir, const char name[56]);
 
 void get_file(FS *fs, file_t *file, const uint16_t &blk_index);
 void get_file(FS *fs, file_t *file, directory_t *parent_dir, const char name[56]);
 
-void get_parent(directory_t *dir, const dir_entry *entry);
+void followPath(FS *fs, file_t *file, const std::string &path);
+void followPath(FS *fs, directory_t *searched_dir, const std::string &path);
+
+void create_dir(FS *fs, directory_t *dir);
+void create_file(FS *fs, file_t *file);
+
+void get_parent(FS *fs, directory_t *dir, const dir_entry *entry);
 }  // namespace fs_obj
 
 #endif  // !__FS_ENTRY__

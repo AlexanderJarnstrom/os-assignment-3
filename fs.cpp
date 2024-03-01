@@ -508,8 +508,13 @@ FS::FS() {
   std::cout << "FS::FS()... Creating file system\n";
   load_fat();
   this->working_dir = read_block_attr(ROOT_BLOCK);
-  fs_obj::directory_t directory;
-  fs_obj::get_directory(this, &directory, ROOT_BLOCK);
+
+  // Tests
+
+  fs_obj::directory_t dir;
+  fs_obj::followPath(this, &dir, "/hello/hello/");
+
+  printf("%s\n", dir.attributes.file_name);
 }
 
 FS::~FS() { delete this->working_dir; }
@@ -517,6 +522,8 @@ FS::~FS() { delete this->working_dir; }
 Disk *FS::get_disk() { return &this->disk; }
 
 int16_t *FS::get_fat() { return this->fat; }
+
+int16_t FS::get_working_dir_blk_index() { return this->working_dir->first_blk; }
 // formats the disk, i.e., creates an empty file system
 int FS::format() {
   int index, cap;
