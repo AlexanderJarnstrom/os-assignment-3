@@ -508,13 +508,6 @@ FS::FS() {
   std::cout << "FS::FS()... Creating file system\n";
   load_fat();
   this->working_dir = read_block_attr(ROOT_BLOCK);
-
-  // Tests
-
-  fs_obj::directory_t dir;
-  fs_obj::followPath(this, &dir, "/hello/hello/");
-
-  printf("%s\n", dir.attributes.file_name);
 }
 
 FS::~FS() { delete this->working_dir; }

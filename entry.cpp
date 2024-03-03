@@ -1,36 +1,44 @@
 #include "entry.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 
 #include "constants.h"
 
+/* * * * * * * * * * * * * *
+ *                         *
+ *    Private functions    *
+ *                         *
+ * * * * * * * * * * * * * *
+ */
+
 void extract_attr(fs_obj::dir_entry *attributes, uint8_t *block) {
-  int i, current_i;
+  int i, block_i;
   uint32_t temp = 0;
 
   for (i = 0; i < F_NAME_SIZE; i++) {
-    attributes->file_name[i] = block[i];
+    attributes->file_name[i] = block[block_i];
+    block_i++;
   }
-  current_i = i;
 
-  for (i = current_i + F_SIZE_SIZE - 1; i >= F_NAME_SIZE; --i) {
-    temp = (temp << ((F_NAME_SIZE + F_SIZE_SIZE) - i)) | block[i];
+  block_i += F_SIZE_SIZE - 1;
+  for (i = 0; i < F_SIZE_SIZE; i++) {
+    temp = (temp << 8) | block[block_i - i];
   }
-  current_i = i + F_SIZE_SIZE;
+
   attributes->size = temp;
-  temp = 0;
 
-  for (i = current_i + F_FIRST_BLOCK_SIZE - 1; i >= current_i; --i) {
-    temp = (temp << ((current_i + F_FIRST_BLOCK_SIZE) - i)) | block[i];
+  block_i += F_FIRST_BLOCK_SIZE - 1;
+  for (i = 0; i < F_FIRST_BLOCK_SIZE; i++) {
+    temp = (temp << 8) | block[block_i - i];
   }
 
-  attributes->first_blk = attributes->first_blk | temp;
-
-  current_i = current_i + F_FIRST_BLOCK_SIZE;
-  attributes->type = block[++current_i];
-  attributes->access_rights = block[++current_i];
+  block_i++;
+  attributes->first_blk = temp;
+  attributes->type = block[++block_i];
+  attributes->access_rights = block[++block_i];
 }
 
 void insert_attr(fs_obj::dir_entry *attributes, uint8_t *block) {
@@ -42,7 +50,65 @@ void insert_attr(fs_obj::dir_entry *attributes, uint8_t *block) {
     block[block_i] = attributes->file_name[i];
     block_i++;
   }
+
+  for (i = 0; i < F_SIZE_SIZE; i++) {
+    block[block_i] = block[block_i] | (attributes->size >> (i * 8));
+    block_i++;
+  }
+
+  for (i = 0; i < F_FIRST_BLOCK_SIZE; i++) {
+    block[block_i] = block[block_i] | (attributes->first_blk >> (i * 8));
+    block_i++;
+  }
+
+  block[block_i++] = attributes->type;
+  block[block_i++] = attributes->access_rights;
+
+  for (i = 0; i < ENTRY_ATTRIBUTE_SIZE; i++) {
+    printf("%d ", block[i]);
+  }
+
+  printf("\n");
 }
+
+void insert_content(std::vector<fs_obj::dir_child *> children, uint8_t *block) {
+  int block_i, i;
+
+  block_i = ENTRY_ATTRIBUTE_SIZE;
+
+  for (fs_obj::dir_child *child : children) {
+    for (char letter : child->file_name) {
+      block[block_i++] = letter;
+    }
+
+    block[block_i++] = child->first_blk | 0x00;
+    block[block_i++] = (child->first_blk >> 8) | 0x00;
+
+    // children.erase(std::remove(children.begin(), children.end(), child));  // WARNING: no idea if works.
+  }
+}
+
+/*
+ * Update parent directory
+ * @param FS *fs filesystem
+ * @param fs_obj::dir_entry *attributes the childs info
+ * @param fs_obj::directory_t *parent the directory to be updated
+ */
+void update_parent(FS *fs, fs_obj::dir_entry *attributes, fs_obj::directory_t *parent) {
+  fs_obj::dir_child child;
+  child.first_blk = attributes->first_blk;
+  strcpy(child.file_name, attributes->file_name);
+
+  parent->children.push_back(&child);
+  fs_obj::create_dir(fs, parent, nullptr);
+}
+
+/* * * * * * * * * * * * * *
+ *                         *
+ *    Public functions     *
+ *                         *
+ * * * * * * * * * * * * * *
+ */
 
 void fs_obj::get_directory(FS *fs, fs_obj::directory_t *dir, const uint16_t &blk_index) {
   uint8_t block[ENTRY_SIZE] = {0};
@@ -55,7 +121,7 @@ void fs_obj::get_directory(FS *fs, fs_obj::directory_t *dir, const uint16_t &blk
   disk->read(blk_index, block);
   // Extract directory attributes
   extract_attr(&dir->attributes, block);
-  // TODO handle error
+  // TODO: handle error
   if (dir->attributes.type != 1) {
     return;
   }
@@ -223,13 +289,39 @@ void fs_obj::followPath(FS *fs, directory_t *searched_dir, const std::string &pa
   if (dir_name != "/") {
     *searched_dir = dir;
   } else {
-    printf("Here: %s\n", dir_name.c_str());
     fs_obj::get_directory(fs, searched_dir, &dir, dir_name.c_str());
   }
 }
 
-void fs_obj::create_dir(FS *fs, directory_t *dir) { uint8_t block[ENTRY_SIZE]; }
+void fs_obj::create_dir(FS *fs, directory_t *dir, directory_t *parent) {
+  uint8_t block[ENTRY_SIZE] = {0};
+  int i, block_i;
+  Disk *disk = fs->get_disk();
 
-void fs_obj::create_file(FS *fs, file_t *file) {}
+  insert_attr(&dir->attributes, block);
+  insert_content(dir->children, block);
 
-void fs_obj::get_parent(FS *fs, fs_obj::directory_t *dir, const fs_obj::dir_entry *entry) { fs_obj::get_directory(fs, dir, entry->parent_blk); }
+  disk->write(dir->attributes.first_blk, block);
+
+  if (parent != nullptr) {
+    update_parent(fs, &dir->attributes, parent);
+  }
+}
+
+void fs_obj::create_file(FS *fs, file_t *file, directory_t *parent) {
+  uint8_t block[ENTRY_SIZE] = {0};
+  int i, block_i;
+  Disk *disk = fs->get_disk();
+
+  insert_attr(&file->attributes, block);
+
+  block_i = ENTRY_ATTRIBUTE_SIZE;
+  for (i = 0; i < file->content.size(); i++) {
+    block[block_i] = file->content[i];
+    block_i++;
+  }
+
+  disk->write(file->attributes.first_blk, block);
+
+  update_parent(fs, &file->attributes, parent);
+}
