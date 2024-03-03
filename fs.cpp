@@ -520,29 +520,22 @@ int16_t FS::get_working_dir_blk_index() { return this->working_dir->first_blk; }
 // formats the disk, i.e., creates an empty file system
 int FS::format() {
   int index, cap;
-  uint8_t block[BLOCK_SIZE];
+  uint8_t block[BLOCK_SIZE] = {0};
   uint8_t cell;
   uint16_t entry;
   uint32_t val;
 
   cap = this->disk.get_no_blocks();
 
-  // Set everything to zero.
-  empty_array(block, BLOCK_SIZE);
+  fs_obj::directory_t root;
+  fs_obj::dir_entry root_attr;
+  root_attr.first_blk = ROOT_BLOCK;
+  root_attr.type = TYPE_DIR;
+  root_attr.access_rights = READ | WRITE;
+  strcpy(root_attr.file_name, "/");
 
-  for (index = 0; index < cap; index++) this->disk.write(index, block);
-
-  // Create root dir.
-
-  struct dir_entry root_dir;
-
-  strcpy(root_dir.file_name, "/");
-  root_dir.first_blk = ROOT_BLOCK;
-  root_dir.access_rights = WRITE + READ;
-  root_dir.type = TYPE_DIR;
-  root_dir.size = 0;
-
-  this->create_dir_entry(&root_dir, "", nullptr, ROOT_BLOCK);
+  root.attributes = root_attr;
+  fs_obj::create_dir(this, &root, nullptr);
 
   // Create fat.
   for (index = 0; index < BLOCK_SIZE; index += 2) {
