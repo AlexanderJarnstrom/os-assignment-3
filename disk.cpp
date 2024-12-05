@@ -1,5 +1,6 @@
 #include <iostream>
 #include "disk.h"
+#include <stdint.h>
 
 Disk::Disk()
 {

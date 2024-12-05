@@ -1,0 +1,13 @@
+#ifndef __CONSTANTS_H__
+#define __CONSTANTS_H__
+
+#define ENTRY_CONTENT_SIZE 4032
+#define ENTRY_ATTRIBUTE_SIZE 64
+
+#define F_NAME_SIZE 56
+#define F_SIZE_SIZE 4
+#define F_FIRST_BLOCK_SIZE 2
+#define F_TYPE_SIZE 1
+#define F_ACCESS_RIGHTS_SIZE 1
+
+#endif //__CONSTANTS_H__
