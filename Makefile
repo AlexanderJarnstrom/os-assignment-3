@@ -3,8 +3,11 @@ GCC=g++
 
 all: filesystem tests
 
-filesystem: main.o shell.o fs.o disk.o
-	$(GCC) -std=c++11 -o filesystem main.o shell.o disk.o fs.o
+filesystem: main.o shell.o fs.o disk.o entry.o
+	$(GCC) -std=c++11 -o filesystem main.o shell.o disk.o fs.o entry.o
+
+entry.o: entry.cpp disk.h constants.h
+	$(GCC) -std=c++11 -O2 -c entry.cpp
 
 main.o: main.cpp shell.h disk.h
 	$(GCC) -std=c++11 -O2 -c main.cpp
@@ -12,7 +15,7 @@ main.o: main.cpp shell.h disk.h
 shell.o: shell.cpp shell.h fs.h disk.h
 	$(GCC) -std=c++11 -O2 -c shell.cpp
 
-fs.o: fs.cpp fs.h disk.h
+fs.o: fs.cpp fs.h disk.h entry.h
 	$(GCC) -std=c++11 -O2 -c fs.cpp
 
 disk.o: disk.cpp disk.h
